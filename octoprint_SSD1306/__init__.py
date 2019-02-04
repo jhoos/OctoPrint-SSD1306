@@ -40,7 +40,7 @@ class SDD1306Plugin(octoprint.plugin.StartupPlugin,
 
         if completion is None:
             # Job is complete or no job is started.
-            self.display.clear(1, 3)
+            self.display.clear(1, 5)
         else:
             self.display.write(1, 'Completed: {}%'.format(completion))
             # Show elapsed time and remaining time
@@ -75,18 +75,20 @@ class SDD1306Plugin(octoprint.plugin.StartupPlugin,
         """
         self._logger.debug('on_printer_add_temperature: %s', data)
 
-        self.display.write(4, '{} {}'.format(
+        msg0 = '{} {}'.format(
             self._format_temp('bed', data['bed']),
             self._format_temp('tool0', data['tool0'])
-        ))
+        )
 
         if 'tool1' in data:
-            msg = self._format_temp('tool1', data['tool1'])
+            msg1 = self._format_temp('tool1', data['tool1'])
             if 'tool2' in data:
-                msg += ' ' + self._format_temp('tool2', data['tool2'])
-            self.display.write(5, msg)
+                msg1 += ' ' + self._format_temp('tool2', data['tool2'])
+            self.display.write(6, msg0)
+            self.display.write(7, msg1)
         else:
-            self.display.clear(5, 5)
+            self.display.clear(6, 6)
+            self.display.write(7, msg0)
 
         self.display.commit()
 
