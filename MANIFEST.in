@@ -1,0 +1,5 @@
+include README.md
+#recursive-include octoprint_SSD1306/templates *
+#recursive-include octoprint_SSD1306/translations *
+#recursive-include octoprint_SSD1306/static *
+recursive-include octoprint_SSD1306/font *
