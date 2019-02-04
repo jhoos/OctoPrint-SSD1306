@@ -1,9 +1,11 @@
 # coding=utf-8
 from __future__ import absolute_import
-from octoprint.printer.estimation import PrintTimeEstimator
+
 import octoprint.plugin
-import octoprint.events
 import time
+
+from octoprint.events import Events
+from octoprint.printer import PrinterCallback
 from datetime import timedelta
 from .ssd1306 import SSD1306
 
@@ -11,56 +13,122 @@ from .ssd1306 import SSD1306
 class SDD1306Plugin(octoprint.plugin.StartupPlugin,
                     octoprint.plugin.ShutdownPlugin,
                     octoprint.plugin.EventHandlerPlugin,
-                    octoprint.plugin.ProgressPlugin):
+                    PrinterCallback):
 
     def __init__(self):
         self.display = SSD1306()
-        self.start = time.time()
 
     def on_startup(self, *args, **kwargs):
         self._logger.info('Initializing SDD1306 display')
         self.display.clear()
-        self.display.write(3, 'Offline')
+        self.display.commit()
+        # Write initial status, assuming printer isn't connected at startup
+        self.display.write(0, 'Offline')
         self.display.commit()
         self._logger.info("SDD1306 display initialized!")
 
-    def on_print_progress(self, storage, path, progress, *args, **kwargs):
-        self._logger.info('on_print_progress: %s, %s, %s', storage, path, progress)
-        self.display.clear(0, 3)
-        self.display.write(0, 'Completed: {}%'.format(progress))
+    def on_after_startup(self, *args, **kwargs):
+        self._printer.register_callback(self)
 
-        if progress == 0:
-            self.start = time.time()
-        elif progress == 100:
-            self.display.clear(0, 3)
+    def on_printer_send_current_data(self, data, **kwargs):
+        """
+        Display print progress on lines 1-3
+        """
+        self._logger.debug('on_printer_send_current_data: %s', data)
+
+        completion = data['progress']['completion']
+
+        if completion is None:
+            # Job is complete or no job is started.
+            self.display.clear(1, 3)
         else:
-            now = time.time()
-            elapsed = now - self.start
-            self.display.write(1, 'Elapsed:   {}'.format(timedelta(seconds=int(elapsed))))
-            if progress > 9 or elapsed > 600:
-                remaining = elapsed * (100.0 / progress - 1)
-                remaining_str = str(timedelta(seconds=int(remaining)))
+            self.display.write(1, 'Completed: {}%'.format(completion))
+            # Show elapsed time and remaining time
+            elapsed = data['progress']['printTime']
+            self.display.write(2, 'Elapsed:   {}'.format(timedelta(seconds=int(elapsed))))
+
+            remaining = data['progress']['printTimeLeft']
+            if remaining is not None:
+                remaining_str = str(timedelta(seconds=remaining))
             else:
-	        remaining_str = '-:--:--'
+                # Job hasn't been running long enough to try to estimate remaining time
+                remaining_str = '-:--:--'
             self.display.write(2, 'Remaining: {}'.format(remaining_str))
 
         self.display.commit()
 
-    def on_event(self, event, payload, *args, **kwargs):
-        self._logger.info('on_event: %s, %s', event, payload)
-        if event == 'Error':
-            self.display.clear(3, 4)
-            self.display.write(3, 'Error! {}'.format(payload['error']))
-        elif event == 'PrinterStateChanged':
-            self.display.clear(3, 4)
-            self.display.write(3, payload['state_string'].replace('Operational', 'Ready'))
+    def _format_temp(self, tool, temp):
+        tool_txt = tool[0].upper()
+        if tool[-1].isdigit():
+            tool_txt += tool[-1]
+        target_dir = '_'
+        if temp['target'] > 0:
+            if abs(temp['target'] - temp['actual']) < 5:
+                target_dir = '-'
+            else:
+                target_dir = '/' if temp['target'] > temp['actual'] else '\\'
+        return '{}:{}{}'.format(tool_txt, int(temp['actual']), target_dir)
+
+    def on_printer_add_temperature(self, data):
+        """
+        Display printer temperatures
+        """
+        self._logger.debug('on_printer_add_temperature: %s', data)
+
+        self.display.write(4, '{} {}'.format(
+            self._format_temp('bed', data['bed']),
+            self._format_temp('tool0', data['tool0'])
+        ))
+
+        if 'tool1' in data:
+            msg = self._format_temp('tool1', data['tool1'])
+            if 'tool2' in data:
+                msg += ' ' + self._format_temp('tool2', data['tool2'])
+            self.display.write(5, msg)
+        else:
+            self.display.clear(5, 5)
+
         self.display.commit()
+
+    def on_event(self, event, payload, *args, **kwargs):
+        """
+        Display printer status events on the first line
+        """
+        self._logger.debug('on_event: %s, %s', event, payload)
+
+        if event == Events.ERROR:
+            self.display.write(0, 'Error! {}'.format(payload['error']))
+            self.display.commit()
+        elif event == Events.PRINTER_STATE_CHANGED:
+            self.display.write(0, payload['state_string'])
+            if payload['state_id'] == 'OFFLINE':
+                # If the printer is offline, clear printer and job messages
+                self.display.clear(1, 7)
+            self.display.commit()
 
     def on_shutdown(self, *args, **kwargs):
+        self._printer.unregister_callback(self)
         self.display.clear()
-        self.display.write(3, 'Bye')
+        self.display.write(0, 'Bye')
         self.display.commit()
 
+    def protocol_gcode_queuing_hook(self, comm_instance, phase, cmd, cmd_type, gcode, *args, **kwargs):
+        if gcode:
+            if gcode == 'M117':
+                self._logger.info('Intercepted M117 gcode: %s', cmd)
+                words = cmd.split(' ')[1:]
+                line1 = words[0]
+                line2 = ''
+                for i in range(1, len(words)):
+                    word = words[i]
+                    if len(line1) + 1 + len(word) <= 16:
+                        line1 += ' ' + word
+                    else:
+                        line2 = ' '.join(words[i:])
+                        break
+                self.display.write(6, line1)
+                self.display.write(7, line2)
+ 
     def get_update_information(self):
         return dict(
             SSD1306Plugin=dict(
@@ -70,7 +138,7 @@ class SDD1306Plugin(octoprint.plugin.StartupPlugin,
                 current=self._plugin_version,
                 user="jhoos",
                 repo="OctoPrint-SDD1306",
-                pip="https://github.com/jhoos/octoprint-SSD1306/archive/{target}.zip"
+                pip="https://github.com/jhoos/OctoPrint-SSD1306/archive/{target}.zip"
             )
         )
 
@@ -82,6 +150,7 @@ def __plugin_load__():
 
     global __plugin_hooks__
     __plugin_hooks__ = {
-        "octoprint.plugin.softwareupdate.check_config": __plugin_implementation__.get_update_information
+        "octoprint.plugin.softwareupdate.check_config": __plugin_implementation__.get_update_information,
+        "octoprint.comm.protocol.gcode.queuing": __plugin_implementation__.protocol_gcode_queuing_hook,
     }
 

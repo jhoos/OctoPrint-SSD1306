@@ -2,6 +2,7 @@ import Adafruit_GPIO.SPI as SPI
 import Adafruit_SSD1306
 import os
 import sys
+import threading
 
 from PIL import Image
 from PIL import ImageDraw
@@ -27,6 +28,8 @@ def _find_resource(file):
 
 class SSD1306(object):
     y_offset = 0  # adjust as necessary for font
+    row_height = 8
+    lock = threading.Lock()
 
     def __init__(self):
         self._init_disp()
@@ -53,10 +56,10 @@ class SSD1306(object):
 
     def _init_disp(self):
         # 128x32 display with hardware I2C:
-        self.disp = Adafruit_SSD1306.SSD1306_128_32(rst=None)
+        # self.disp = Adafruit_SSD1306.SSD1306_128_32(rst=None)
         
         # 128x64 display with hardware I2C:
-        # self.disp = Adafruit_SSD1306.SSD1306_128_64(rst=None)
+        self.disp = Adafruit_SSD1306.SSD1306_128_64(rst=None)
         
         # Note you can change the I2C address by passing an i2c_address parameter like:
         # self.disp = Adafruit_SSD1306.SSD1306_128_64(rst=None, i2c_address=0x3C)
@@ -76,14 +79,26 @@ class SSD1306(object):
         # on a Raspberry Pi with the 128x32 display you might use:
         # self.disp = Adafruit_SSD1306.SSD1306_128_32(rst=None, dc=DC, sclk=18, din=25, cs=22)
 
-    def clear(self, start=0, end=8):
-        # Draw a black filled box to clear the image.
-        self.draw.rectangle((0, start * 8, self.width, min(end * 8, self.height) - 1), outline=0, fill=0)
+    def clear(self, start=0, end=None):
+        """
+        Draw a black filled box to clear the image.
+        """
+        pixel_start = start * self.row_height
+        pixel_end = (end + 1) * self.row_height - 1 if end is not None else self.height
+        self.draw.rectangle((0, pixel_start, self.width, pixel_end), outline=0, fill=0)
 
     def write(self, row, txt):
-        self.draw.text((0, row * 8 + self.y_offset), str(txt), font=self.font, fill=255)
+        """
+        Write a single row of text, clearing whatever was on the row previously.
+        """
+        self.clear(row, row)
+        self.draw.text((0, row * self.row_height + self.y_offset), str(txt), font=self.font, fill=255)
 
     def commit(self):
-        self.disp.image(self.image)
-        self.disp.display()
+        """
+        Send the current display buffer to the device.
+        """
+        with self.lock:
+            self.disp.image(self.image)
+            self.disp.display()
 
