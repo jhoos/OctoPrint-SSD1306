@@ -30,6 +30,11 @@ class SDD1306Plugin(octoprint.plugin.StartupPlugin,
     def on_after_startup(self, *args, **kwargs):
         self._printer.register_callback(self)
 
+    def _format_seconds(self, seconds):
+        h = int(seconds / 3600)
+        m = int((seconds - h * 3600) / 60)
+        return '{}h {}m'.format(h, m) if h > 0 else '{}m'.format(m)
+
     def on_printer_send_current_data(self, data, **kwargs):
         """
         Display print progress on lines 1-3
@@ -42,18 +47,16 @@ class SDD1306Plugin(octoprint.plugin.StartupPlugin,
             # Job is complete or no job is started.
             self.display.clear(1, 5)
         else:
-            self.display.write(1, 'Completed: {}%'.format(completion))
+            self.display.write(1, '{}% Completed'.format(int(completion)))
             # Show elapsed time and remaining time
             elapsed = data['progress']['printTime']
-            self.display.write(2, 'Elapsed:   {}'.format(timedelta(seconds=int(elapsed))))
+            self.display.write(2, '{} Elapsed'.format(self._format_seconds(elapsed)))
 
             remaining = data['progress']['printTimeLeft']
             if remaining is not None:
-                remaining_str = str(timedelta(seconds=remaining))
+                self.display.write(3, '{} Left'.format(self._format_seconds(remaining)))
             else:
-                # Job hasn't been running long enough to try to estimate remaining time
-                remaining_str = '-:--:--'
-            self.display.write(2, 'Remaining: {}'.format(remaining_str))
+                self.display.clear(3, 3)
 
         self.display.commit()
 
