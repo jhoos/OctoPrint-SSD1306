@@ -15,13 +15,9 @@ class SDD1306Plugin(octoprint.plugin.StartupPlugin,
                     octoprint.plugin.EventHandlerPlugin,
                     PrinterCallback):
 
-    def __init__(self):
-        self.display = SSD1306()
-
     def on_startup(self, *args, **kwargs):
         self._logger.info('Initializing SDD1306 display')
-        self.display.clear()
-        self.display.commit()
+        self.display = SSD1306()
         # Write initial status, assuming printer isn't connected at startup
         self.display.write(0, 'Offline')
         self.display.commit()
@@ -45,7 +41,7 @@ class SDD1306Plugin(octoprint.plugin.StartupPlugin,
 
         if completion is None:
             # Job is complete or no job is started.
-            self.display.clear(1, 5)
+            self.display.clear(1, 6)
         else:
             self.display.write(1, '{}% Completed'.format(int(completion)))
             # Show elapsed time and remaining time
@@ -56,7 +52,7 @@ class SDD1306Plugin(octoprint.plugin.StartupPlugin,
             if remaining is not None:
                 self.display.write(3, '{} Left'.format(self._format_seconds(remaining)))
             else:
-                self.display.clear(3, 3)
+                self.display.clear(3, 4)
 
         self.display.commit()
 
@@ -90,7 +86,7 @@ class SDD1306Plugin(octoprint.plugin.StartupPlugin,
             self.display.write(6, msg0)
             self.display.write(7, msg1)
         else:
-            self.display.clear(6, 6)
+            self.display.clear(6, 7)
             self.display.write(7, msg0)
 
         self.display.commit()
@@ -108,14 +104,12 @@ class SDD1306Plugin(octoprint.plugin.StartupPlugin,
             self.display.write(0, payload['state_string'])
             if payload['state_id'] == 'OFFLINE':
                 # If the printer is offline, clear printer and job messages
-                self.display.clear(1, 7)
+                self.display.clear(1, 8)
             self.display.commit()
 
     def on_shutdown(self, *args, **kwargs):
         self._printer.unregister_callback(self)
-        self.display.clear()
-        self.display.write(0, 'Bye')
-        self.display.commit()
+        self.display().stop()
 
     def protocol_gcode_queuing_hook(self, comm_instance, phase, cmd, cmd_type, gcode, *args, **kwargs):
         if gcode:
@@ -131,8 +125,10 @@ class SDD1306Plugin(octoprint.plugin.StartupPlugin,
                     else:
                         line2 = ' '.join(words[i:])
                         break
-                self.display.write(6, line1)
-                self.display.write(7, line2)
+                self._logger.info('Split message: "%s" "%s"', line1, line2)
+                self.display.write(4, line1)
+                self.display.write(5, line2)
+                self.display.commit()
  
     def get_update_information(self):
         return dict(
