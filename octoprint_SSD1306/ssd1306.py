@@ -109,7 +109,7 @@ class SSD1306(threading.Thread):
     def stop(self):
         self._stop = True
         self.join()
-	self._display.clear()
+	self._disp.clear()
 
 
     def clear(self, start=0, end=None):
