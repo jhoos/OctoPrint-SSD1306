@@ -9,13 +9,13 @@ It is loosely based on the OctoPrint-Lcd1602 plugin at /home/pi/oprint/lib/pytho
 Install via the bundled [Plugin Manager](https://github.com/foosel/OctoPrint/wiki/Plugin:-Plugin-Manager)
 or manually using this URL:
 
-    https://github.com/jhoos/OctoPrint-SDD1306/archive/master.zip
+    https://github.com/jhoos/OctoPrint-SSD1306/archive/master.zip
 
 ## Manual Installation 
 
 Clone the repo from GitHub onto your OctoPrint device, then do:
 
-    cd OctoPrint-SDD1306
+    cd OctoPrint-SSD1306
     . ~/oprint/bin/activate
     python setup.py install
 
