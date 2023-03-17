@@ -133,13 +133,13 @@ class SDD1306Plugin(octoprint.plugin.StartupPlugin,
     def get_update_information(self):
         return dict(
             SSD1306Plugin=dict(
-                displayName="SSD1306 Display",
+                displayName=self._plugin_name,
                 displayVersion=self._plugin_version,
                 type="github_release",
                 current=self._plugin_version,
                 user="jhoos",
                 repo="OctoPrint-SDD1306",
-                pip="https://github.com/jhoos/OctoPrint-SSD1306/archive/{target}.zip"
+                pip="https://github.com/fredrikbaberg/OctoPrint-SSD1306/archive/{target}.zip"
             )
         )
 

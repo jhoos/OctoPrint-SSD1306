@@ -1,5 +1,7 @@
-import Adafruit_GPIO.SPI as SPI
-import Adafruit_SSD1306
+# import Adafruit_GPIO.SPI as SPI
+from board import SCL, SDA
+import adafruit_ssd1306
+import busio
 import os
 import sys
 import threading
@@ -64,9 +66,11 @@ class SSD1306(threading.Thread):
     def _init_disp(self):
         # 128x32 display with hardware I2C:
         # self._disp = Adafruit_SSD1306.SSD1306_128_32(rst=None)
+        i2c = busio.I2C(SCL, SDA)
+        self._disp = adafruit_ssd1306.SSD1306_I2C(128, 32, i2c)
         
         # 128x64 display with hardware I2C:
-        self._disp = Adafruit_SSD1306.SSD1306_128_64(rst=None)
+        # self._disp = Adafruit_SSD1306.SSD1306_128_64(rst=None)
         
         # Note you can change the I2C address by passing an i2c_address parameter like:
         # self._disp = Adafruit_SSD1306.SSD1306_128_64(rst=None, i2c_address=0x3C)
@@ -96,7 +100,7 @@ class SSD1306(threading.Thread):
             with self._lock:
                 rows = copy(self._committed_rows)
 
-            print rows
+            print(rows)
             self._clear_image()
             for (r, t) in enumerate(rows):
                 self._write_text_to_image(r, t)
@@ -109,7 +113,7 @@ class SSD1306(threading.Thread):
     def stop(self):
         self._stop = True
         self.join()
-	self._disp.clear()
+        self._disp.clear()
 
 
     def clear(self, start=0, end=None):
